@@ -1,0 +1,27 @@
+target/
+.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+### IntelliJ IDEA ###
+.idea/
+*.iws
+*.iml
+*.ipr
+
+### OS Files ###
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+### Logs & Temp ###
+*.log
+*.tmp
+
+### Local Database Files ###
+*.h2.db
+*.mv.db
+*.lock
+
+### Configuration Secrets ###
+application.properties
