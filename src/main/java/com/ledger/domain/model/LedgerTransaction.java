@@ -23,7 +23,7 @@ public class LedgerTransaction {
     @Column(nullable = false)
     private TransactionStatus status;
 
-    @OneToMany(mappedBy = "transaction", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "transaction", cascade = CascadeType.PERSIST)
     private List<LedgerEntry> entries = new ArrayList<>();
 
     protected LedgerTransaction() {

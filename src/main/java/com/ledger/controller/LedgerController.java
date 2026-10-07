@@ -1,17 +1,17 @@
 package com.ledger.controller;
 
 import com.ledger.domain.model.Account;
-import com.ledger.domain.model.LedgerTransaction;
 import com.ledger.dto.AccountCreateRequest;
 import com.ledger.dto.TransferRequest;
 import com.ledger.service.LedgerService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/v1/ledger")
+@RequestMapping("/api/ledger")
 public class LedgerController {
 
     private final LedgerService ledgerService;
@@ -26,18 +26,19 @@ public class LedgerController {
         return ResponseEntity.ok(account);
     }
 
+    @GetMapping("/accounts/{accountNumber}")
+    public ResponseEntity<Account> getAccount(@PathVariable String accountNumber) {
+        return ResponseEntity.ok(ledgerService.getAccount(accountNumber));
+    }
+
     @PostMapping("/transfers")
-    public ResponseEntity<LedgerTransaction> processTransfer(@RequestBody TransferRequest request) {
-        LedgerTransaction transaction = ledgerService.processTransfer(
-                request.fromAccountId(),
-                request.toAccountId(),
+    public ResponseEntity<String> transfer(@RequestBody TransferRequest request) {
+        ledgerService.processTransfer(
+                request.fromAccountId().toString(),
+                request.toAccountId().toString(),
                 request.amount(),
                 request.idempotencyKey()
         );
-        return ResponseEntity.ok(transaction);
-    }
-    @GetMapping("/accounts/{id}")
-    public ResponseEntity<Account> getAccount(@PathVariable UUID id) {
-        return ResponseEntity.ok(ledgerService.getAccount(id));
+        return ResponseEntity.ok("Transfer processed successfully");
     }
 }

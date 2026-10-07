@@ -1,5 +1,6 @@
 package com.ledger.service;
 
+import com.ledger.domain.enums.AccountType;
 import com.ledger.domain.enums.EntryDirection;
 import com.ledger.domain.enums.TransactionStatus;
 import com.ledger.domain.model.Account;
@@ -7,71 +8,63 @@ import com.ledger.domain.model.LedgerEntry;
 import com.ledger.domain.model.LedgerTransaction;
 import com.ledger.domain.repository.AccountRepository;
 import com.ledger.domain.repository.LedgerTransactionRepository;
-import org.springframework.data.redis.core.StringRedisTemplate;
+import com.ledger.exception.ResourceNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.Duration;
-import java.util.UUID;
 
 @Service
 public class LedgerService {
 
     private final AccountRepository accountRepository;
     private final LedgerTransactionRepository transactionRepository;
-    private final StringRedisTemplate redisTemplate;
 
-    public LedgerService(AccountRepository accountRepository,
-                         LedgerTransactionRepository transactionRepository,
-                         StringRedisTemplate redisTemplate) {
+    public LedgerService(AccountRepository accountRepository, LedgerTransactionRepository transactionRepository) {
         this.accountRepository = accountRepository;
         this.transactionRepository = transactionRepository;
-        this.redisTemplate = redisTemplate;
     }
 
-    public Account createAccount(String accountNumber, com.ledger.domain.enums.AccountType type) {
+    @Transactional
+    public Account createAccount(String accountNumber, AccountType type) {
+        if (accountRepository.findByAccountNumber(accountNumber).isPresent()) {
+            throw new RuntimeException("Account already exists");
+        }
         Account account = new Account(accountNumber, type);
         return accountRepository.save(account);
     }
 
+    public Account getAccount(String accountNumber) {
+        return accountRepository.findByAccountNumber(accountNumber)
+                .orElseThrow(() -> new ResourceNotFoundException("Account not found: " + accountNumber));
+    }
+
     @Transactional
-    public LedgerTransaction processTransfer(UUID fromAccountId, UUID toAccountId, BigDecimal amount, String idempotencyKey) {
-
-        // 1. Enforce Distributed Idempotency via Redis (Lock key for 24 hours)
-        String redisKey = "idempotency:" + idempotencyKey;
-        Boolean isNewRequest = redisTemplate.opsForValue().setIfAbsent(redisKey, "PROCESSING", Duration.ofHours(24));
-
-        if (Boolean.FALSE.equals(isNewRequest)) {
-            throw new IllegalStateException("Duplicate request: Transaction with this idempotency key is already processed.");
+    public void processTransfer(String fromAccountNumber, String toAccountNumber, BigDecimal amount, String referenceId) {
+        if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Transfer amount must be greater than zero");
         }
 
-        // 2. Lock rows to prevent concurrent race conditions
-        Account sourceAccount = accountRepository.findByIdForUpdate(fromAccountId)
-                .orElseThrow(() -> new IllegalArgumentException("Source account not found"));
+        if (transactionRepository.findByReferenceId(referenceId).isPresent()) {
+            throw new IllegalStateException("Transaction reference already processed");
+        }
 
-        Account targetAccount = accountRepository.findByIdForUpdate(toAccountId)
-                .orElseThrow(() -> new IllegalArgumentException("Target account not found"));
+        Account fromAccount = getAccount(fromAccountNumber);
+        Account toAccount = getAccount(toAccountNumber);
 
-        // 3. Create transaction container
-        LedgerTransaction transaction = new LedgerTransaction(idempotencyKey, "Account Transfer");
+        // Mutate account balances
+        fromAccount.debit(amount);
+        toAccount.credit(amount);
 
-        // 4. Generate double-entry legs
-        LedgerEntry debitEntry = new LedgerEntry(sourceAccount, amount, EntryDirection.DEBIT);
-        LedgerEntry creditEntry = new LedgerEntry(targetAccount, amount, EntryDirection.CREDIT);
-        // Update physical account balances
-        sourceAccount.debit(amount);
-        targetAccount.credit(amount);
+        // Persist updated account balances
+        accountRepository.save(fromAccount);
+        accountRepository.save(toAccount);
 
-        transaction.addEntry(debitEntry);
-        transaction.addEntry(creditEntry);
-        transaction.setStatus(TransactionStatus.POSTED);
+        // Record immutable ledger transaction and entries
+        LedgerTransaction transaction = new LedgerTransaction(referenceId, TransactionStatus.POSTED.name());
+        transaction.addEntry(new LedgerEntry(fromAccount, amount, EntryDirection.DEBIT));
+        transaction.addEntry(new LedgerEntry(toAccount, amount, EntryDirection.CREDIT));
 
-        // 5. Persist the transaction and cascade the entries
-        return transactionRepository.save(transaction);
-    }
-    public Account getAccount(UUID id) {
-        return accountRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Account not found: " + id));
+        transactionRepository.save(transaction);
     }
 }
