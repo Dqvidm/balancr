@@ -1,6 +1,5 @@
-package com.ledger.financialledgerengine;
+package com.ledger;
 
-import com.ledger.BankerApplication;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 

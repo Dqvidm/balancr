@@ -1,13 +1,14 @@
-package service;
+package com.ledger.service;
 
 import com.ledger.BankerApplication;
 import com.ledger.domain.enums.AccountType;
 import com.ledger.domain.model.Account;
 import com.ledger.domain.repository.AccountRepository;
-import com.ledger.service.LedgerService;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -22,11 +23,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.when;
 
 @SpringBootTest(classes = BankerApplication.class)
 class LedgerConcurrencyIntegrationTest {
@@ -47,8 +43,12 @@ class LedgerConcurrencyIntegrationTest {
     @SuppressWarnings("unchecked")
     void setUp() {
         ValueOperations<String, String> valueOperations = (ValueOperations<String, String>) Mockito.mock(ValueOperations.class);
-        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-        when(valueOperations.setIfAbsent(anyString(), anyString(), any(Duration.class))).thenReturn(true);
+        Mockito.when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        Mockito.when(valueOperations.setIfAbsent(
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.any(Duration.class)
+        )).thenReturn(true);
 
         sourceAccountNumber = "SRC-" + UUID.randomUUID();
         destinationAccountNumber = "DST-" + UUID.randomUUID();
@@ -98,12 +98,12 @@ class LedgerConcurrencyIntegrationTest {
 
         BigDecimal expectedDeduction = transferAmount.multiply(BigDecimal.valueOf(successCount.get()));
 
-        assertEquals(
+        Assertions.assertEquals(
                 BigDecimal.valueOf(1000.00).subtract(expectedDeduction).stripTrailingZeros(),
                 finalSource.getBalance().stripTrailingZeros()
         );
 
-        assertEquals(
+        Assertions.assertEquals(
                 expectedDeduction.stripTrailingZeros(),
                 finalDestination.getBalance().stripTrailingZeros()
         );
