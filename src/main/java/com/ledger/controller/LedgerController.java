@@ -4,11 +4,9 @@ import com.ledger.domain.model.Account;
 import com.ledger.dto.AccountCreateRequest;
 import com.ledger.dto.TransferRequest;
 import com.ledger.service.LedgerService;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.math.BigDecimal;
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/ledger")
@@ -23,7 +21,7 @@ public class LedgerController {
     @PostMapping("/accounts")
     public ResponseEntity<Account> createAccount(@RequestBody AccountCreateRequest request) {
         Account account = ledgerService.createAccount(request.accountNumber(), request.type());
-        return ResponseEntity.ok(account);
+        return ResponseEntity.status(HttpStatus.CREATED).body(account);
     }
 
     @GetMapping("/accounts/{accountNumber}")
@@ -34,8 +32,8 @@ public class LedgerController {
     @PostMapping("/transfers")
     public ResponseEntity<String> transfer(@RequestBody TransferRequest request) {
         ledgerService.processTransfer(
-                request.fromAccountId().toString(),
-                request.toAccountId().toString(),
+                request.fromAccountNumber(),
+                request.toAccountNumber(),
                 request.amount(),
                 request.idempotencyKey()
         );
